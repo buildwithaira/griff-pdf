@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDFFlow - Edit PDF</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3737c9;
+            --dark: #1a1a2e;
+            --light: #819fa9;
+            --gray: #62757d;
+            --sidebar-width: 20%;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            color: var(--dark);
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden; /* Prevent horizontal overflow */
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: white;
+            height: 100vh;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease, transform 0.3s ease; /* Added transform for smoother transitions */
+            z-index: 100; /* Increased z-index to stay above main content */
+            overflow-y: auto;
+            position: relative; /* Ensure proper stacking context */
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            overflow: hidden; /* Hide content when collapsed */
+            transform: translateX(-100%); /* Slide out for consistency */
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            font-weight: 600;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-title i {
+            color: var(--primary);
+        }
+
+        .close-sidebar {
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .tool-groups-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tool-group {
+            padding: 15px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tool-group-title {
+            padding: 0 20px 10px;
+            font-size: 14px;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tool-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            padding: 0 15px;
+        }
+
+        .tool-button {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tool-button:hover {
+            background: #f9fafb;
+            border-color: var(--primary);
+        }
+
+        .tool-button.active {
+            background: rgba(67, 97, 238, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .tool-button i {
+            font-size: 18px;
+        }
+
+        .tool-button span {
+            font-size: 12px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: width 0.3s ease; /* Transition width instead of margin */
+            width: calc(100% - var(--sidebar-width)); /* Adjust width based on sidebar */
+            z-index: 50; /* Lower than sidebar */
+        }
+
+        .main-content.sidebar-collapsed {
+            width: 100%; /* Full width when sidebar is collapsed */
+        }
+
+        /* Top Bar */
+        .top-bar {
+            height: 60px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+        }
+
+        .document-name {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary);
+        }
+
+        .top-bar-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .top-bar-button {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .top-bar-button:hover {
+            background: #f9fafb;
+        }
+
+        .top-bar-button.primary {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .top-bar-button.primary:hover {
+            background: var(--secondary);
+        }
+
+        /* PDF Viewer */
+        .pdf-viewer-container {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            background: #e5e7eb;
+            max-width: 100%; /* Prevent overflow */
+        }
+
+        .pdf-viewer {
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            min-width: 60%;
+            min-height: 100%;
+        }
+
+        .pdf-page {
+            margin-bottom: 20px;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .pdf-page canvas {
+            display: block;
+        }
+
+        /* Annotation Tools */
+        .annotation-toolbar {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            padding: 5px;
+            z-index: 5;
+        }
+
+        .annotation-button {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 2px;
+        }
+
+        .annotation-button:hover {
+            background: #f3f4f6;
+        }
+
+        .annotation-button.active {
+            background: rgba(67, 97, 238, 0.1);
+            color: var(--primary);
+        }
+
+        /* Right Sidebar */
+        .right-sidebar {
+            width: 25%;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            z-index: 100; /* Same as left sidebar to avoid overlap */
+        }
+
+        .right-sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page-thumbnails {
+            padding: 10px;
+        }
+
+        .page-thumbnail {
+            margin-bottom: 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .page-thumbnail:hover {
+            border-color: var(--primary);
+        }
+
+        .page-thumbnail.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.3);
+        }
+
+        .page-thumbnail canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+
+        /* History controls */
+        .history-controls {
+            display: flex;
+            gap: 5px;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .history-button {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .history-button:hover {
+            background: #f9fafb;
+        }
+
+        .history-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .sidebar {
+                position: absolute;
+                left: 0;
+                width: 50%; /* Use a wider percentage for visibility on smaller screens */
+                transform: translateX(-100%);
+                box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+                width: 50%; /* Ensure consistent width */
+            }
+
+            .main-content {
+                width: 100%; /* Full width in responsive mode */
+            }
+
+            .main-content.sidebar-collapsed {
+                width: 100%; /* No change needed */
+            }
+
+            .right-sidebar {
+                position: absolute;
+                right: 0;
+                width: 50%; /* Adjusted for smaller screens */
+                transform: translateX(100%);
+            }
+
+            .right-sidebar.open {
+                transform: translateX(0);
+                width: 50%;
+            }
+        }
+
+        /* Zoom Controls */
+        .zoom-controls {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            display: flex;
+            gap: 5px;
+            z-index: 150; /* Above both sidebars */
+        }
+
+        .zoom-button {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .zoom-button:hover {
+            background: #f9fafb;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Left Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">
+                <i class="fas fa-tools"></i>
+                <span>Tools</span>
+            </div>
+            <button class="close-sidebar" id="close-sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+
+        <div class="history-controls">
+            <button class="history-button" id="undo-button" title="Undo" disabled>
+                <i class="fas fa-undo"></i>
+            </button>
+            <button class="history-button" id="redo-button" title="Redo" disabled>
+                <i class="fas fa-redo"></i>
+            </button>
+        </div>
+
+        <div class="tool-groups-container">
+            <div class="tool-group">
+                <div class="tool-group-title">Edit</div>
+                <div class="tool-buttons">
+                    <div class="tool-button active" data-tool="select">
+                        <i class="fas fa-mouse-pointer"></i>
+                        <span>Select</span>
+                    </div>
+                    <div class="tool-button" data-tool="text">
+                        <i class="fas fa-font"></i>
+                        <span>Text</span>
+                    </div>
+                    <div class="tool-button" data-tool="image">
+                        <i class="fas fa-image"></i>
+                        <span>Image</span>
+                    </div>
+                    <div class="tool-button" data-tool="shape">
+                        <i class="fas fa-shapes"></i>
+                        <span>Shapes</span>
+                    </div>
+                    <div class="tool-button" data-tool="link">
+                        <i class="fas fa-link"></i>
+                        <span>Link</span>
+                    </div>
+                    <div class="tool-button" data-tool="watermark">
+                        <i class="fas fa-stamp"></i>
+                        <span>Watermark</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-group-title">Annotate</div>
+                <div class="tool-buttons">
+                    <div class="tool-button" data-tool="highlight">
+                        <i class="fas fa-highlighter"></i>
+                        <span>Highlight</span>
+                    </div>
+                    <div class="tool-button" data-tool="underline">
+                        <i class="fas fa-underline"></i>
+                        <span>Underline</span>
+                    </div>
+                    <div class="tool-button" data-tool="strikethrough">
+                        <i class="fas fa-strikethrough"></i>
+                        <span>Strikethrough</span>
+                    </div>
+                    <div class="tool-button" data-tool="comment">
+                        <i class="fas fa-comment"></i>
+                        <span>Comment</span>
+                    </div>
+                    <div class="tool-button" data-tool="draw">
+                        <i class="fas fa-pencil-alt"></i>
+                        <span>Draw</span>
+                    </div>
+                    <div class="tool-button" data-tool="eraser">
+                        <i class="fas fa-eraser"></i>
+                        <span>Eraser</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-group-title">Pages</div>
+                <div class="tool-buttons">
+                    <div class="tool-button" data-tool="add-page">
+                        <i class="fas fa-plus"></i>
+                        <span>Add Page</span>
+                    </div>
+                    <div class="tool-button" data-tool="delete-page">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete Page</span>
+                    </div>
+                    <div class="tool-button" data-tool="rotate">
+                        <i class="fas fa-redo"></i>
+                        <span>Rotate</span>
+                    </div>
+                    <div class="tool-button" data-tool="reorder">
+                        <i class="fas fa-arrows-alt-v"></i>
+                        <span>Reorder</span>
+                    </div>
+                    <div class="tool-button" data-tool="crop">
+                        <i class="fas fa-crop"></i>
+                        <span>Crop</span>
+                    </div>
+                    <div class="tool-button" data-tool="extract">
+                        <i class="fas fa-cut"></i>
+                        <span>Extract</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-group-title">Sign</div>
+                <div class="tool-buttons">
+                    <div class="tool-button" data-tool="signature">
+                        <i class="fas fa-signature"></i>
+                        <span>Signature</span>
+                    </div>
+                    <div class="tool-button" data-tool="initial">
+                        <i class="fas fa-signature"></i>
+                        <span>Initial</span>
+                    </div>
+                    <div class="tool-button" data-tool="date">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Date</span>
+                    </div>
+                    <div class="tool-button" data-tool="stamp">
+                        <i class="fas fa-stamp"></i>
+                        <span>Stamp</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <button class="top-bar-button" id="toggle-sidebar">
+                <i class="fas fa-bars"></i>
+                <span>Tools</span>
+            </button>
+
+            <div class="document-name">
+                <i class="fas fa-file-pdf"></i>
+                <span>document.pdf</span>
+            </div>
+
+            <div class="top-bar-actions">
+                <button class="top-bar-button">
+                    <i class="fas fa-share"></i>
+                    <span>Share</span>
+                </button>
+                <button class="top-bar-button">
+                    <i class="fas fa-download"></i>
+                    <span>Download</span>
+                </button>
+                <button class="top-bar-button primary">
+                    <i class="fas fa-save"></i>
+                    <span>Save</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Zoom Controls -->
+        <div class="zoom-controls">
+            <button class="zoom-button" id="zoom-in">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button class="zoom-button" id="zoom-out">
+                <i class="fas fa-search-minus"></i>
+            </button>
+        </div>
+
+        <!-- PDF Viewer -->
+        <div class="pdf-viewer-container" style="overflow: auto;">
+            <div class="pdf-viewer" id="pdf-viewer">
+                <!-- PDF pages will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="right-sidebar" id="right-sidebar">
+        <div class="right-sidebar-header">
+            <i class="fas fa-file-signature"></i>
+            <span>Pages</span>
+        </div>
+        <div class="page-thumbnails" id="page-thumbnails">
+            <!-- Page thumbnails will be rendered here -->
+        </div>
+    </div>
+
+    <script>
+        // Initialize PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
+        // Set the PDF URL (replace with your actual PDF URL if using a backend)
+        const pdfUrl = '{{ file_url }}' || 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey.pdf'; // Fallback to a sample PDF
+
+        // Initialize variables
+        let pdfDoc = null,
+            pageNum = 1,
+            pageRendering = false,
+            pageNumPending = null,
+            scale = 1.5; // Initial scale
+
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        let sidebarCollapsed = false;
+
+        // Load the PDF
+        function loadPdf() {
+            console.log('Loading PDF from:', pdfUrl); // Debug URL
+            pdfjsLib.getDocument(pdfUrl).promise.then(function (pdfDoc_) {
+                pdfDoc = pdfDoc_;
+                document.querySelector('.document-name span').textContent = pdfDoc_.title || 'document.pdf';
+                // Render all pages and thumbnails
+                renderAllPages();
+                renderAllThumbnails();
+            }).catch(function (error) {
+                console.error('Error loading PDF:', error.message, error);
+                document.getElementById('pdf-viewer').innerHTML = `<p>Error loading PDF: ${error.message}. Please ensure the file exists and is accessible.</p>`;
+            });
+        }
+
+        // Render a single PDF page
+        function renderPage(num) {
+            pageRendering = true;
+            pageNum = num;
+
+            pdfDoc.getPage(num).then(function (page) {
+                const viewport = page.getViewport({ scale: scale });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'pdf-page';
+                pageDiv.dataset.pageNumber = num;
+                pageDiv.appendChild(canvas);
+                document.getElementById('pdf-viewer').appendChild(pageDiv);
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+
+                const renderTask = page.render(renderContext);
+                renderTask.promise.then(function () {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+        }
+
+        // Render all PDF pages
+        function renderAllPages() {
+            const pdfViewer = document.getElementById('pdf-viewer');
+            pdfViewer.innerHTML = ''; // Clear existing pages
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                renderPage(i);
+            }
+        }
+
+        // Render all thumbnails
+        function renderAllThumbnails() {
+            const thumbnailsContainer = document.getElementById('page-thumbnails');
+            thumbnailsContainer.innerHTML = '';
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                renderThumbnail(i);
+            }
+        }
+
+        // Render a single thumbnail
+        function renderThumbnail(num) {
+            pdfDoc.getPage(num).then(function (page) {
+                const viewport = page.getViewport({ scale: 0.3 });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const thumbnail = document.createElement('div');
+                thumbnail.className = 'page-thumbnail';
+                thumbnail.dataset.pageNumber = num;
+                thumbnail.appendChild(canvas);
+
+                const pageNumber = document.createElement('span');
+                pageNumber.className = 'page-number';
+                pageNumber.textContent = num;
+                thumbnail.appendChild(pageNumber);
+
+                thumbnail.addEventListener('click', function () {
+                    scrollToPage(num);
+                });
+
+                document.getElementById('page-thumbnails').appendChild(thumbnail);
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                page.render(renderContext);
+            });
+        }
+
+        // Scroll to a specific page
+        function scrollToPage(num) {
+            const pageDiv = document.querySelector(`.pdf-page[data-page-number="${num}"]`);
+            if (pageDiv) {
+                pageDiv.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            } else {
+                renderPage(num);
+                setTimeout(() => {
+                    const pageDiv = document.querySelector(`.pdf-page[data-page-number="${num}"]`);
+                    if (pageDiv) {
+                        pageDiv.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                }, 500);
+            }
+        }
+
+        // Zoom In
+        document.getElementById('zoom-in').addEventListener('click', function () {
+            scale += 0.2;
+            renderAllPages();
+        });
+
+        // Zoom Out
+        document.getElementById('zoom-out').addEventListener('click', function () {
+            scale -= 0.2;
+            if (scale < 0.5) scale = 0.5; // Minimum zoom
+            renderAllPages();
+        });
+
+        // Toggle Sidebar
+        document.getElementById('toggle-sidebar').addEventListener('click', function () {
+            sidebarCollapsed = !sidebarCollapsed;
+            sidebar.classList.toggle('collapsed', sidebarCollapsed);
+            mainContent.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+            if (window.innerWidth <= 1200) {
+                sidebar.classList.toggle('open', !sidebarCollapsed);
+            }
+            // Avoid re-rendering unless necessary to prevent layout shifts
+            // renderAllPages();
+            // renderAllThumbnails();
+        });
+
+        // Close Sidebar
+        document.getElementById('close-sidebar').addEventListener('click', function () {
+            sidebarCollapsed = true;
+            sidebar.classList.add('collapsed');
+            mainContent.classList.add('sidebar-collapsed');
+            if (window.innerWidth <= 1200) {
+                sidebar.classList.remove('open');
+            }
+            // Avoid re-rendering unless necessary
+            // renderAllPages();
+            // renderAllThumbnails();
+        });
+
+        // Start loading the PDF
+        loadPdf();
+    </script>
+</body>
+
+</html>
