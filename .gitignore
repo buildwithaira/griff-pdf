@@ -82,3 +82,9 @@ local_settings.py
 !/images/
 !/static/
 !/templates/
+
+
+
+/media/uploaded_files/
+
+/venv/lib/site-packages
