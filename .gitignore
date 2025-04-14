@@ -1,0 +1,84 @@
+# Editor and IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.bak
+*.swp
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Node.js dependencies (for potential frontend tooling)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs (for frontend or Python packaging)
+dist/
+build/
+out/
+
+# Temporary and cache files
+.cache/
+*.log
+*.log.*
+temp/
+tmp/
+
+# Environment and sensitive files
+.env
+.env.local
+.env.*.local
+
+# Project-specific files
+# Ignore PDFs unless explicitly included
+/pdf/
+*.pdf
+
+# Ignore user-generated outputs
+/output/
+/downloads/
+
+# Python-specific files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+Pipfile.lock
+.coverage
+.coverage.*
+.pytest_cache/
+*.egg-info/
+*.egg
+venv/
+env/
+.venv/
+.env/
+
+# Django-specific files
+*.sqlite3
+staticfiles/
+media/
+local_settings.py
+# settings.py is typically tracked, but ignore variants
+# *.settings.py
+# Allow main settings.py
+!settings.py
+*.pot
+*.mo
+*.po
+# Ignore migrations (optional; uncomment to track migrations)
+# migrations/
+
+# Allow core project files to be tracked
+!index.html
+!/css/
+!/js/
+!/images/
+!/static/
+!/templates/
